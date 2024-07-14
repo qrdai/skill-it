@@ -13,6 +13,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Skill-It data selection"
     )
+
     # data loading arguments
     parser.add_argument(
         "--task_name",
@@ -52,6 +53,7 @@ def parse_args():
         help="Path of .pkl file containing dictionary for NI/Alpaca training samples that belong to the validation set",
         default="./aux_data/dev_split_map.pkl",
     )
+
     # Natural Instructions-specific arguments
     parser.add_argument(
         "--xlingual",
@@ -78,9 +80,10 @@ def parse_args():
         action="store_true",
         default=None,
     )
+
     # general data sampling arguments
     parser.add_argument(
-        "--selection_seed",
+        "--selection_seed", # used when constructing `NIDataset`
         type=int,
         default=0,
     )
@@ -136,10 +139,10 @@ def parse_args():
         help="Pacing function parameter for log pacing.",
     )
     parser.add_argument(
-        "--slice_list",
+        "--slice_list", # filter to get only targeted skills
         type=str,
         nargs="+",
-        help="1) Path to file (.txt) with list of skills to filter on (newline separated), or 2) the direct list of skills to filter. If a skill is defined along multiple axes, they are flattened, e.g., ['question_generation', 'spanish', 'spanish', 'question_answering', 'spanish', 'spanish'] consists of two skills.",
+        help="1) Path to file (.txt) with list of skills to filter on (newline separated), or 2) the direct list of skills to filter. If a skill is defined along multiple axes, they are flattened, e.g., ['question_generation', 'spanish', 'spanish', 'question_answering', 'spanish', 'spanish'] consists of two skills.",  # the first `spanish` -> input language; second -> output
         default=None,
     )
     parser.add_argument(
@@ -154,7 +157,7 @@ def parse_args():
         help="If true, the validation dataset will also only consist of skills in slice_list. This is useful in the Natural Instructions fine-tuning settings."
     )
     parser.add_argument(
-        "--sample_rule",
+        "--sample_rule",    # choices = ['mixture', 'stratified', 'uniform']
         type=str,
         default=None,
         help="Strategy for sampling after filtering. `stratified` means 1/k probability per skill, while `mixture` enables using a custom list of proportions.",
@@ -169,7 +172,7 @@ def parse_args():
     parser.add_argument(
         "--k",
         type=int,
-        default=None,
+        default=None,   # "synthetics" refer to LEGO and addition datasets
         help="Number of skills. Needs to be set for synthetics, but for real datasets this can be inferred from the data.",
     )
     parser.add_argument(
@@ -186,7 +189,7 @@ def parse_args():
         help="Number of training segments in synthetics to specify skill mixtures over. Default is 1.",
     )
     parser.add_argument(
-        "--proportions",
+        "--proportions",    # can manually assign multiple static proportions to different training segments (i.e., stages), possibly refer to trainer/manual_trainer.py
         type=float,
         nargs="+",
         default=None,
@@ -212,14 +215,15 @@ def parse_args():
         default=None,
         help="List of proportions to indicate how long each segment is. Does not need to add up to 1. Only supported in synthetics.",
     )
+
     # Skill-It algorithm arguments
     parser.add_argument(
-        "--mw",
+        "--mw", # "multiplicative weights" refers to `p` in skill-it updating rule
         action="store_true",
         help="Use 'multiplicative weights' (e.g., Skill-It online sampling) algorithm"
     )
     parser.add_argument(
-        "--update_steps",
+        "--update_steps",   # update `mw` (p) every `update_steps`; e.g., for spanishqg, total # of updating rounds T = 6, and max_steps = 600, so update_steps = max_steps / T = 600 / 6 = 100
         type=int,
         default=None,
         help="How often to update multiplicative weights"
@@ -248,7 +252,7 @@ def parse_args():
         "--mw_window",
         type=int,
         default=3,
-        help="Look-back window for weight update."
+        help="Look-back window for weight update."  # involve models of the last 3 checkpoints in the mixture update rule
     )
     parser.add_argument(
         "--mw_prior",
@@ -287,6 +291,7 @@ def parse_args():
         action="store_true",
         help="If true, we decrease the edge weights of the skills graph as time goes on. This is worth setting when we believe that dependencies among skills grow weaker as skills are learned."
     )
+
     # training arguments
     parser.add_argument(
         "--context_length",
@@ -321,6 +326,7 @@ def parse_args():
         default=4,
         type=int,
     )
+
     # evaluation args
     parser.add_argument(
         "--num_ckpts",
@@ -361,7 +367,7 @@ def main():
     evaluator = get_evaluator(args, logger, model, tokenizer, output_dir_path)    
     logger.info("Training model!")
     trainer = get_trainer(args)   
-    trainer.train(args, logger, tokenizer, model, validation_data, evaluator)
+    trainer.train(args, logger, tokenizer, model, validation_data, evaluator)   # call `get_train_dataset` inside trainer.train
 
 
 if __name__ == "__main__":

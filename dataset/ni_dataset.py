@@ -39,9 +39,9 @@ class NIDataset(AbstractDataset):
         seed,
         sample_rule,
         is_eval,
-        data_path,
-        dev_split_path=None,
-        ni_task_info_path=None,
+        data_path,              # for spanish_qg, default to "/natural-instructions"
+        dev_split_path=None,    # for spanish_qg, default to "./aux_data/xlingual_dev_split_map.pkl"
+        ni_task_info_path=None, # for spanish_qg, default to "./aux_data/ni_xlingual_task_info.pkl"
     ):
         """
         Construct the NaturalInstructionsDataset.
@@ -73,7 +73,7 @@ class NIDataset(AbstractDataset):
         # get all the training task paths
         self.train_splits = []
         splits_file = (
-            "splits/xlingual/train_tasks.txt"
+            "splits/xlingual/train_tasks.txt"   # for spanish_qg finetune setting
             if args.xlingual
             else "splits/default/test_tasks.txt" 
             if args.ni_test and self.is_eval
@@ -111,10 +111,11 @@ class NIDataset(AbstractDataset):
         self.set_proportions(args, args.proportions_file if args.proportions_file is not None else args.proportions)
 
     def set_skills(self, args):
-        
+        """Sets the support of skills over which we are sampling from by processing args.slice_list."""
+
         slices, _ = get_filter_skills(args.slice_list, args.exclude_slice, self.k)
         if slices is not None and (not self.is_eval or (self.is_eval and args.filter_val_skills)):
-            self.skills = np.array(slices)
+            self.skills = np.array(slices)  # for spanish_qg, self.skills = [[question_answering, english, english], [...], ...], whose shape = 4*3
         else:
             if len(self.slicer) > 1:
                 self.skills = np.array(sorted(self.train_task_info.groupby(self.slicer).size().reset_index()[self.slicer].values))
@@ -123,9 +124,9 @@ class NIDataset(AbstractDataset):
             
         self.k = len(self.skills)
         self.logger.info(f"Remaining {self.k} skills:\n{self.skills}")
-        if len(self.slicer) > 1:
-            self.skills = [tuple(i) for i in self.skills]
-            self.skills_to_tasks = {s: self.train_task_info.loc[self.train_task_info[self.slicer].apply(tuple, axis=1) == s].long_task.values for s in self.skills}
+        if len(self.slicer) > 1:    # for spanish_qg, self.slicer = ["task_category", "input_language", "output_language"]
+            self.skills = [tuple(i) for i in self.skills]   # for spanish_qg, self.skills = [(question_answering, english, english), (...), ...]
+            self.skills_to_tasks = {s: self.train_task_info.loc[self.train_task_info[self.slicer].apply(tuple, axis=1) == s].long_task.values for s in self.skills} # for spanish_qg, self.skills_to_tasks = {('question_answering', 'english', 'english'): array(['task598_cuad_answer_generation', ..., ]), ...}
         else:
             subset_train_task_info = self.train_task_info.loc[
                 self.train_task_info[self.slicer[0]].isin(self.skills)
@@ -133,12 +134,22 @@ class NIDataset(AbstractDataset):
             self.skills_to_tasks = {s: subset_train_task_info.loc[subset_train_task_info[self.slicer[0]] == s].long_task.values for s in sorted(self.skills)}    
 
     def set_proportions(self, args, proportions):
+        """Sets the proportions with which to sample each skill.
+        
+        Arguments:
+        - args: args.graph is used (exp sum of weights) if proportions are not provided.
+        - proportions: a list of values (not necessarily adding up to 1) that determine how frequently to sample each skill. This is used to update the skills mixture before and during training.
+        """
+
         self.tasks_to_p = {}
 
         if self.sample_rule == "mixture":
             if proportions is not None and ".npy" in proportions:
                 proportions = np.load(proportions)
             elif args.graph is not None or args.graph_path is not None and not args.mw:
+                # bug? should be `elif (args.graph is not None or args.graph_path is not None) and args.mw:`
+                # solved: not a bug, because `set_proportions` will be called again in MWTrainer.train(): train_data.set_proportions(args, weights), where `weights` is already initialized as the softmax of skills graph A
+                print(f"\nself.sample_rule == 'mixture', but proportions is None\n")
                 proportions = get_weights_from_graph(args)  
                 
             if proportions is not None:             
@@ -155,6 +166,7 @@ class NIDataset(AbstractDataset):
                     for task in tasks:
                         self.tasks_to_p[task] = task_p
             else:
+                print(f"\nself.sample_rule == 'mixture', but still using uniform proportions initialization\n")
                 self.logger.info(f"Performing uniform sampling over tasks.")
                 n_tasks = len(self.train_task_info.long_task.values)
                 self.tasks_to_p = {task: 1.0 / n_tasks for task in self.train_task_info.long_task.values}
@@ -167,6 +179,7 @@ class NIDataset(AbstractDataset):
                 for task in tasks:
                     self.tasks_to_p[task] = task_p
         else:
+            print(f"\nself.sample_rule != 'mixture' or 'stratified':\n")
             self.logger.info(f"Performing uniform sampling over tasks.")
             all_tasks = [item for sublist in list(self.skills_to_tasks.values()) for item in sublist]
             n_tasks = len(all_tasks)
@@ -174,6 +187,9 @@ class NIDataset(AbstractDataset):
 
 
     def get_tokenized_dataset(self):
+        """Produce a train or validation dataset (depending on is_eval) of size n_data."""
+        # the most important step in formulating the dataset object
+
         self.task_dict = OrderedDict()
         for task_name in self.tasks_to_p:
             task_path = os.path.join(self.data_path, "tasks", task_name + ".json")
@@ -193,7 +209,7 @@ class NIDataset(AbstractDataset):
                 task["Instances"] = [obj for i, obj in enumerate(task["Instances"]) if i not in self.dev_split[task_name]]
 
             for instance in task["Instances"]:
-                output_space.add(instance["output"][0])
+                output_space.add(instance["output"][0]) # only take the first output as the reference answer
                 if len(output_space) > 10:
                     is_classification = False
                     break

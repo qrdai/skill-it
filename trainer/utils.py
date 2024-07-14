@@ -26,7 +26,7 @@ from dataset.hf_dataset import HFDataset
 
 def get_train_dataset(args, logger, tokenizer):
     if args.task_name == "ni":
-        train_dataset = NIDataset(args, logger, tokenizer, args.selection_seed, args.sample_rule, False, args.train_data_dir)
+        train_dataset = NIDataset(args, logger, tokenizer, args.selection_seed, args.sample_rule, False, args.train_data_dir)   # for spanish_qg, args.sample_rule = "mixture"
     elif args.task_name == "lego":
         train_dataset = LegoDataset(args, logger, tokenizer, args.selection_seed, args.sample_rule, args.n_segment, False)
     elif args.task_name == "addition":

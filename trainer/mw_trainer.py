@@ -59,9 +59,9 @@ class MWTrainer(AbstractTrainer):
         
         
         if args.target_mask is not None:
-            args.target_mask = np.array([int(i) for i in args.target_mask])
+            args.target_mask = np.array([int(i) for i in args.target_mask]) # for spanish_qg, args.target_mask = [0,0,0,1]
             target_idxs = np.where(args.target_mask == 1)[0]
-            graph = graph[:, target_idxs]
+            graph = graph[:, target_idxs]   # only select columns whose target_mask_value = 1 (but always retain all the rows)
             logger.info(f"Target mask is set to {args.target_mask}")
         
         logger.info(f"Using dependency graph:\n{graph}")
@@ -71,13 +71,13 @@ class MWTrainer(AbstractTrainer):
             weights_init = np.array(args.mw_prior)
         else:
             weights_init = np.ones(graph.shape[0])
-            logger.info(f"weights init are {weights_init}")
+            logger.info(f"weights init are {weights_init}") # for spanish_qg, weights_init = [1,1,1,1]
     
     
         if args.ni_test:
             loss_init = np.ones(graph.shape[1])
         elif args.target_mask is not None:
-            loss_init = np.ones(len(target_idxs))
+            loss_init = np.ones(len(target_idxs))   # for spanish_qg, loss_init = [1]
         else:
             loss_init = weights_init
     
@@ -107,11 +107,11 @@ class MWTrainer(AbstractTrainer):
                 logger.info(f"weights_mw: {weights_mw}")
 
             else:
-                weights = np.multiply(weights_init, np.exp(args.eta * graph.dot(loss_init)))
+                weights = np.multiply(weights_init, np.exp(args.eta * graph.dot(loss_init))) # initialize p_{1}^{i} for all i in [args.k], which is the softmax over skills graph A
                 logger.info(f"Loss init is {loss_init}, weights are {weights}")
 
-        train_data.set_proportions(args, weights)
-        tokenized_train = get_tokenized_train_dataset(args, train_data, args.update_steps*args.batch_size)
+        train_data.set_proportions(args, weights)   # here set proportions again to override the proportions set during init of train_data
+        tokenized_train = get_tokenized_train_dataset(args, train_data, args.update_steps*args.batch_size)  # the most crucial step: calls `NIDataset.get_tokenized_dataset`
         train_dataloader = get_train_dataloader(args.task_name, tokenizer, tokenized_train, args.batch_size, args.slicer)
         
         model.zero_grad()

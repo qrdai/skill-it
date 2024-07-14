@@ -48,6 +48,8 @@ def get_filter_skills(slice_input, exclude_slice=None, n_slices=None):
         - slice_input: path to skills file, skill itself, or list of skills
         - exclude_slice: if slice_input is a list of multiple skill, this will make us filter/sample from slice_input - exclude_slice.
     """ 
+    # for spanish_qg, slice_input -> args.slice_list with length 12; exclude_slice -> None; n_slices -> args.k = 4
+
     slice_scores = None    
     if slice_input is None:
         return None, None 
@@ -65,12 +67,12 @@ def get_filter_skills(slice_input, exclude_slice=None, n_slices=None):
         elif len(slice_input) % n_slices != 0:
             raise ValueError(f"Length of slice list ({slice_input}) is not divisible by n_slices ({n_slices})")
         else:
-            slices = np.array(slice_input).reshape((n_slices, -1))
+            slices = np.array(slice_input).reshape((n_slices, -1))  # for spanish_qg, slices = [[question_answering, english, english], [...], ...], whose shape = 4*3
     else:
         slices = np.array(slice_input)
         
     if slice_scores is None:
-        slice_scores = np.ones(len(slices))
+        slice_scores = np.ones(len(slices)) # for spanish_qg, slice_scores = [1,1,1,1]
     
     if exclude_slice is not None:
         assert (exclude_slice in slices and len(slices) > 1)
