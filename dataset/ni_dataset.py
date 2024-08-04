@@ -162,7 +162,8 @@ class NIDataset(AbstractDataset):
 
                 for skill, p in zip(self.skills, self.proportions):
                     tasks = self.skills_to_tasks[skill]
-                    task_p = p / len(tasks)
+                    task_p = p / len(tasks) # 对于 skill 下属的每个 task, 仍然以 task 为单位均匀采样 -> 在 skill-it conceptual framework 之下, 更合理的不应该是不管 task 这个维度, 直接 skill-wise 地均匀采样吗?
+                    # 当然, 它整个 codebase 后面在 training 过程的每一个 selection step, 也都是 task-wise 地采样该训练步的训练数据: Generates samples by sampling at the task level. 这更多地是 NI 这个数据集本身的问题: 这个数据集本身的 task prior info 太过丰富, 其实并不适合套到 skill-it 的框架之下.
                     for task in tasks:
                         self.tasks_to_p[task] = task_p
             else:
